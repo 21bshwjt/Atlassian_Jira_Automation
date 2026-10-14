@@ -18,7 +18,7 @@ function Test-JiraApiAccess {
         Atlassian API token. Use single quotes when passing it inline.
 
     .PARAMETER BaseUrl
-        Jira Cloud base URL. Defaults to https://opella.atlassian.net
+        Jira Cloud base URL. Defaults to https://your-site.atlassian.net
 
     .EXAMPLE
         Test-JiraApiAccess -Email 'username@opella.com' -ApiToken 'your-token'
@@ -39,8 +39,7 @@ function Test-JiraApiAccess {
 
         [Parameter()]
         [ValidatePattern('^https://')]
-        #[string]$BaseUrl = 'https://opella.atlassian.net'
-        [string]$BaseUrl = 'https://orbitra.atlassian.net'
+        [string]$BaseUrl = 'https://your-site.atlassian.net'
     )
 
     begin {
@@ -136,4 +135,4 @@ function Test-JiraApiAccess {
 }
 
 # Example:
-# Test-JiraApiAccess -Email 'username@opella.com' -ApiToken 'your-api-token'
+# Test-JiraApiAccess -Email 'email' -ApiToken 'your-api-token'

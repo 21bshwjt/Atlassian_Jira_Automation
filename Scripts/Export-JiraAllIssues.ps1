@@ -15,7 +15,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$JiraBaseUrl = "https://orbitra.atlassian.net",
+    [string]$JiraBaseUrl = "https://your-site.atlassian.net",
 
     [Parameter(Mandatory = $true, HelpMessage = "Your Atlassian account email")]
     [string]$Email,
