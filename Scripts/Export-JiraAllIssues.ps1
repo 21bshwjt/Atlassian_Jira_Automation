@@ -1,0 +1,205 @@
+<#
+.SYNOPSIS
+    Pulls all Jira tickets from the IDENTITY project and exports them into a single
+    Excel worksheet using the ImportExcel module.
+
+    Includes the Labels property (as a comma-separated list) and boolean (True/False)
+    presence flags for Description & Acceptance Criteria with color-coded conditional
+    formatting (Green for True, Red for False).
+
+.NOTES
+    - Uses Jira Cloud REST API v3 (/rest/api/3/search/jql) with token-based pagination.
+    - Requires ImportExcel module (auto-installed if missing).
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory = $false)]
+    [string]$JiraBaseUrl = "https://orbitra.atlassian.net",
+
+    [Parameter(Mandatory = $true, HelpMessage = "Your Atlassian account email")]
+    [string]$Email,
+
+    [Parameter(Mandatory = $true, HelpMessage = "Your Atlassian API Token")]
+    [string]$ApiToken,
+
+    [Parameter(Mandatory = $false)]
+    [string]$ProjectKey = "ORB",
+
+    [Parameter(Mandatory = $false)]
+    [string]$OutputFolder = "D:\Reports",
+
+    [Parameter(Mandatory = $false)]
+    [string]$ExcelFileName = "JIRA_Identity_Report_All.xlsx",
+
+    [Parameter(Mandatory = $false)]
+    [string]$WorksheetName = "All_Issues",
+
+    # "Start date" field ID (name collides with other fields, so use ID directly)
+    [Parameter(Mandatory = $false)]
+    [string]$StartDateFieldId = "customfield_10015",
+
+    # "Acceptance criteria" field ID
+    [Parameter(Mandatory = $false)]
+    [string]$AcceptanceCriteriaFieldId = "customfield_10320"
+)
+
+# ---- 1. Setup & Authentication ---------------------------------------------
+
+# Prepare Basic Auth Headers
+$authBytes = [System.Text.Encoding]::ASCII.GetBytes("${Email}:${ApiToken}")
+$base64Auth = [System.Convert]::ToBase64String($authBytes)
+
+$headers = @{
+    "Authorization" = "Basic $base64Auth"
+    "Content-Type"  = "application/json"
+    "Accept"        = "application/json"
+}
+
+# Ensure ImportExcel module is available
+if (-not (Get-Module -ListAvailable -Name ImportExcel)) {
+    Write-Host "ImportExcel module not found. Installing for current user..." -ForegroundColor Yellow
+    Install-Module -Name ImportExcel -Scope CurrentUser -Force
+}
+Import-Module ImportExcel
+
+$excelPath = Join-Path $OutputFolder $ExcelFileName
+New-Item -ItemType Directory -Path $OutputFolder -Force | Out-Null
+
+# Remove previous file so Export-Excel starts fresh
+if (Test-Path $excelPath) {
+    Remove-Item $excelPath -Force
+}
+
+# Helper function to evaluate whether an ADF field or string is populated
+function Test-HasContent ($fieldValue) {
+    if ($null -eq $fieldValue) { return $false }
+    # ADF object check: verify content array exists and has nodes
+    if ($fieldValue.PSObject.Properties['content']) {
+        return ($fieldValue.content.Count -gt 0)
+    }
+    # Plain string check
+    if ($fieldValue -is [string]) {
+        return (-not [string]::IsNullOrWhiteSpace($fieldValue))
+    }
+    return $true
+}
+
+# ---- 2. REST API v3 JQL Search (Token-based pagination) --------------------
+
+function Get-JiraIssuesByJql {
+    param(
+        [Parameter(Mandatory = $true)][string]$Jql,
+        [Parameter(Mandatory = $true)][string[]]$Fields
+    )
+
+    $server = $JiraBaseUrl.TrimEnd('/')
+    $fieldList = $Fields -join ','
+    $token = $null
+
+    do {
+        $uri = "{0}/rest/api/3/search/jql?jql={1}&fields={2}&maxResults=100" -f `
+            $server, `
+            [uri]::EscapeDataString($Jql), `
+            [uri]::EscapeDataString($fieldList)
+
+        if ($token) {
+            $uri += "&nextPageToken=$([uri]::EscapeDataString($token))"
+        }
+
+        try {
+            $resp = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop
+            $resp.issues
+            $token = $resp.nextPageToken
+        }
+        catch {
+            Write-Error "Failed fetching issues for JQL [$Jql]: $($_.Exception.Message)"
+            if ($_.Exception.Response) {
+                $stream = $_.Exception.Response.GetResponseStream()
+                $reader = [System.IO.StreamReader]::new($stream)
+                Write-Error "API Response: $($reader.ReadToEnd())"
+            }
+            break
+        }
+    } while ($token -and -not $resp.isLast)
+}
+
+# ---- 3. Conditional Formatting Rules ---------------------------------------
+
+$ConditionalText = @(
+    # --- Status column rules ---
+    New-ConditionalText -Text 'Done'        -ConditionalTextColor White     -BackgroundColor Green
+    New-ConditionalText -Text 'In Progress' -ConditionalTextColor Black     -BackgroundColor Yellow
+    New-ConditionalText -Text 'Blocked'     -ConditionalTextColor White     -BackgroundColor Red
+    New-ConditionalText -Text 'To Do'       -ConditionalTextColor Black     -BackgroundColor LightGray
+    New-ConditionalText -Text 'Backlog'     -ConditionalTextColor Black     -BackgroundColor LightGray
+    New-ConditionalText -Text 'On Hold'     -ConditionalTextColor White     -BackgroundColor SteelBlue
+
+    # --- Description & Acceptance Criteria boolean rules (soft green / soft red) ---
+    New-ConditionalText -Text 'TRUE'        -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    New-ConditionalText -Text 'True'        -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    New-ConditionalText -Text 'FALSE'       -ConditionalTextColor DarkRed   -BackgroundColor LightPink
+    New-ConditionalText -Text 'False'       -ConditionalTextColor DarkRed   -BackgroundColor LightPink
+)
+
+# ---- 4. Fetch All Issues & Export to Excel ---------------------------------
+
+Write-Host "Fetching all issues for project '$ProjectKey'..." -ForegroundColor Cyan
+
+$jqlQuery = "project = $ProjectKey ORDER BY key ASC"
+$fieldsToFetch = @(
+    'summary',
+    'status',
+    'assignee',
+    'issuetype',
+    'labels',
+    'duedate',
+    $StartDateFieldId,
+    'description',
+    $AcceptanceCriteriaFieldId
+)
+
+$issues = Get-JiraIssuesByJql -Jql $jqlQuery -Fields $fieldsToFetch
+
+$rows = @($issues | ForEach-Object {
+        # Convert labels array into a clean comma-separated string
+        $labelString = if ($_.fields.labels) { ($_.fields.labels -join ', ') } else { '' }
+
+        [pscustomobject]@{
+            Key                = $_.key
+            Summary            = $_.fields.summary
+            IssueType          = $_.fields.issuetype.name
+            Status             = $_.fields.status.name
+            Assignee           = $_.fields.assignee.displayName
+            Labels             = $labelString
+            StartDate          = $_.fields.$StartDateFieldId
+            DueDate            = $_.fields.duedate
+            Description        = (Test-HasContent $_.fields.description)
+            AcceptanceCriteria = (Test-HasContent $_.fields.$AcceptanceCriteriaFieldId)
+        }
+    })
+
+Write-Host "Found $($rows.Count) issue(s) in project '$ProjectKey'." -ForegroundColor Gray
+
+if ($rows.Count -eq 0) {
+    Write-Host "No issues found in project '$ProjectKey'; writing a header-only sheet." -ForegroundColor DarkYellow
+    $rows = [pscustomobject]@{
+        Key                = $null
+        Summary            = $null
+        IssueType          = $null
+        Status             = $null
+        Assignee           = $null
+        Labels             = $null
+        StartDate          = $null
+        DueDate            = $null
+        Description        = $null
+        AcceptanceCriteria = $null
+    }
+}
+
+# Export all rows to a single worksheet
+$rows | Export-Excel -Path $excelPath -WorksheetName $WorksheetName -ClearSheet `
+    -AutoFilter -FreezeTopRow `
+    -TableStyle Medium15 -ConditionalText $ConditionalText
+
+Write-Host "`nDone. Workbook saved to: $excelPath" -ForegroundColor Green
