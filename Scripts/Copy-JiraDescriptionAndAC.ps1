@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
     Copies both the Description and Acceptance Criteria (customfield_10320)
-    from IDENTITY-5061 to one or multiple Jira tickets, preserving 100% of the rich-text ADF formatting.
+    from IDAM-21 to one or multiple Jira tickets, preserving 100% of the rich-text ADF formatting.
 #>
 
 [CmdletBinding()]
@@ -16,7 +16,7 @@ param(
     [string]$ApiToken,
 
     [Parameter(Mandatory = $false)]
-    [string]$SourceIssueKey = "IDENTITY-5061",
+    [string]$SourceIssueKey = "IDAM-21",
 
     [Parameter(Mandatory = $true, ValueFromPipeline = $true, HelpMessage = "One or more target issue keys")]
     [string[]]$TargetIssueKeys,

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Pulls 4 Jira label-based queries from the IDENTITY project and exports them
+    Pulls Jira label-based queries (one per entry in -Labels) and exports them
     into a single Excel workbook, one worksheet per label, each with its own
     header color, using the ImportExcel module.
    
@@ -10,6 +10,9 @@
 .NOTES
     - Uses Jira Cloud REST API v3 (/rest/api/3/search/jql) with token-based pagination.
     - Requires ImportExcel module (auto-installed if missing).
+
+.EXAMPLE
+    .\Export-JiraIssuesByLabel.ps1 -Email me@x.com -ApiToken $tok -Labels label1,label2
 #>
 
 [CmdletBinding()]
@@ -23,8 +26,12 @@ param(
     [Parameter(Mandatory = $true, HelpMessage = "Your Atlassian API Token")]
     [string]$ApiToken,
 
+    # One worksheet is created per label, named after the label
+    [Parameter(Mandatory = $true, HelpMessage = "Labels")]
+    [string[]]$Labels,
+
     [Parameter(Mandatory = $false)]
-    [string]$ProjectKey = "IDENTITY",
+    [string]$ProjectKey = "KAN",
 
     [Parameter(Mandatory = $false)]
     [string]$OutputFolder = "C:\Reports",
@@ -122,13 +129,19 @@ function Get-JiraIssuesByJql {
 }
 
 # ---- 3. Label -> Worksheet Mapping & Table Styles --------------------------
+# Labels come from -Labels; table styles rotate through this palette.
 
-$labelMap = [ordered]@{
-    'entraid'  = @{ Sheet = 'EntraID'; Style = 'Medium2' }   # blue
-    'saviynt'  = @{ Sheet = 'Saviynt'; Style = 'Medium6' }   # green
-    'pki'      = @{ Sheet = 'PKI'; Style = 'Medium9' }   # orange/gold
-    'cyberark' = @{ Sheet = 'CyberArk'; Style = 'Medium15' }  # purple
-}
+$styles = @(
+    'Medium2'    # blue
+    'Medium6'    # green
+    'Medium9'    # orange/gold
+    'Medium15'   # purple
+    'Medium3'    # orange
+    'Medium7'    # aqua
+)
+
+# Accept "a,b,c" as a single argument as well as an array
+$Labels = @($Labels -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
 
 # ---- 4. Conditional Formatting Rules ---------------------------------------
 
@@ -150,9 +163,12 @@ $ConditionalText = @(
 
 # ---- 5. Process Labels and Export to Excel ---------------------------------
 
-foreach ($label in $labelMap.Keys) {
-    $sheetName = $labelMap[$label].Sheet
-    $style = $labelMap[$label].Style
+for ($i = 0; $i -lt $Labels.Count; $i++) {
+    $label = $Labels[$i]
+    # Excel sheet names: max 31 chars, no : \ / ? * [ ]
+    $sheetName = ($label -replace '[:\\/?*\[\]]', '_')
+    if ($sheetName.Length -gt 31) { $sheetName = $sheetName.Substring(0, 31) }
+    $style = $styles[$i % $styles.Count]
 
     Write-Host "Fetching issues for label '$label' -> worksheet '$sheetName'..." -ForegroundColor Cyan
 

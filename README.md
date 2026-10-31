@@ -162,28 +162,17 @@ Runs one JQL query per label and writes each result set to its own worksheet wit
 ```powershell
 .\Export-JiraIssuesByLabel.ps1 -Email $Email -ApiToken $ApiToken `
     -JiraBaseUrl 'https://your-site.atlassian.net' `
-    -ProjectKey 'PROJ' -OutputFolder 'C:\Reports'
+    -ProjectKey 'PROJ' -OutputFolder 'C:\Reports' `
+    -Labels 'backend','frontend'
 ```
 
-Parameters match `Export-JiraAllIssues.ps1`, except there is no `WorksheetName` (sheets are named per label). The default file name is `JIRA_Identity_Report.xlsx`.
+Parameters match `Export-JiraAllIssues.ps1`, except there is no `WorksheetName` (sheets are named per label) and `Labels` is required. The default file name is `JIRA_Identity_Report.xlsx`.
 
-**Default label → worksheet mapping:**
+| Parameter | Required | Description |
+|---|:---:|---|
+| `Labels` | ✅ | Jira labels to report on. Pass a list (`'a','b'`) or one comma-separated string (`'a,b'`). |
 
-| Label | Worksheet | Table style |
-|---|---|---|
-| `entraid` | EntraID | Medium2 (blue) |
-| `saviynt` | Saviynt | Medium6 (green) |
-| `pki` | PKI | Medium9 (orange) |
-| `cyberark` | CyberArk | Medium15 (purple) |
-
-To report on different labels, edit the `$labelMap` hashtable near the top of the script:
-
-```powershell
-$labelMap = [ordered]@{
-    'backend'  = @{ Sheet = 'Backend';  Style = 'Medium2' }
-    'frontend' = @{ Sheet = 'Frontend'; Style = 'Medium6' }
-}
-```
+Each label gets its own worksheet, named after the label. Table colours rotate in label order: Medium2 (blue), Medium6 (green), Medium9 (orange/gold), Medium15 (purple), Medium3 (orange), Medium7 (aqua).
 
 ---
 

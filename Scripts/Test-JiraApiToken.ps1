@@ -21,10 +21,10 @@ function Test-JiraApiAccess {
         Jira Cloud base URL. Defaults to https://your-site.atlassian.net
 
     .EXAMPLE
-        Test-JiraApiAccess -Email 'username@opella.com' -ApiToken 'your-token'
+        Test-JiraApiAccess -Email 'you@company.com' -ApiToken 'your-token'
 
     .EXAMPLE
-        Test-JiraApiAccess -Email 'username@opella.com' -ApiToken 'your-token' -Verbose
+        Test-JiraApiAccess -Email 'you@company.com' -ApiToken 'your-token' -Verbose
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]

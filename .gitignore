@@ -1,0 +1,18 @@
+# Exported reports: can hold real Jira issue data
+*.xlsx
+*.xls
+*.csv
+
+# Excel lock files created while a workbook is open
+~$*
+
+# Local secrets or config, if you ever keep a token in a file
+*.secret
+*.env
+.env
+secrets.json
+
+# OS / editor clutter
+Thumbs.db
+desktop.ini
+.vscode/

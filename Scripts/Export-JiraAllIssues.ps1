@@ -24,7 +24,7 @@ param(
     [string]$ApiToken,
 
     [Parameter(Mandatory = $false)]
-    [string]$ProjectKey = "ORB",
+    [string]$ProjectKey = "KAN",
 
     [Parameter(Mandatory = $false)]
     [string]$OutputFolder = "D:\Reports",
