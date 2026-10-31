@@ -75,7 +75,7 @@ $ApiToken = Read-Host 'Jira API token'
 Test-JiraApiAccess -Email $Email -ApiToken $ApiToken -BaseUrl 'https://your-site.atlassian.net'
 ```
 
-> **Tip:** Every script accepts a `-JiraBaseUrl` (or `-BaseUrl`) parameter. Always pass your own site URL rather than relying on the built-in defaults.
+> **Important:** Every script accepts a `-JiraBaseUrl` (or `-BaseUrl`) parameter, and its default is the placeholder `https://your-site.atlassian.net`. Always pass your own site URL, or the request will fail.
 
 ---
 
@@ -172,7 +172,7 @@ Parameters match `Export-JiraAllIssues.ps1`, except there is no `WorksheetName` 
 |---|:---:|---|
 | `Labels` | ✅ | Jira labels to report on. Pass a list (`'a','b'`) or one comma-separated string (`'a,b'`). |
 
-Each label gets its own worksheet, named after the label. Table colours rotate in label order: Medium2 (blue), Medium6 (green), Medium9 (orange/gold), Medium15 (purple), Medium3 (orange), Medium7 (aqua).
+Each label gets its own worksheet, named after the label. Characters Excel doesn't allow in sheet names (`: \ / ? * [ ]`) become `_`, and names are cut to 31 characters. Table colours rotate in label order: Medium2 (blue), Medium6 (green), Medium9 (orange/gold), Medium15 (purple), Medium3 (orange), Medium7 (aqua).
 
 ---
 
@@ -231,7 +231,7 @@ If a query returns no issues, a header-only sheet is still written so the workbo
   ```
 - Use `Read-Host` (as shown above) so the token never lands in your shell history.
 - API tokens carry **your** permissions. Scope them to what you need and revoke unused ones at [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens).
-- Add report output folders to `.gitignore` if they sit inside the repo, because exported data may be confidential.
+- Exported data may be confidential. The repo's `.gitignore` already excludes `*.xlsx`, `*.xls` and `*.csv`, plus `.env`, `*.env`, `*.secret` and `secrets.json`. If you send reports to a folder inside the repo under another format, add it there too.
 
 ---
 
@@ -253,6 +253,7 @@ If a query returns no issues, a header-only sheet is still written so the workbo
 
 ```
 Atlassian_Jira_Automation/
+├── .gitignore                          # Keeps exported reports and secrets out of git
 ├── README.md
 └── Scripts/
     ├── Test-JiraApiToken.ps1           # Validate API credentials and diagnose access issues
