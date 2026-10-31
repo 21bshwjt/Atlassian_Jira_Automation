@@ -41,18 +41,55 @@ All scripts talk directly to the [Jira Cloud REST API v3](https://developer.atla
 
 ## Prerequisites
 
-| Requirement | Notes |
-|---|---|
-| **PowerShell** | Windows PowerShell 5.1 or PowerShell 7+ |
-| **Jira Cloud account** | With browse/edit permission on the target project(s) |
-| **Atlassian API token** | Create one at [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens) |
-| **ImportExcel module** | Required by the export scripts only. Installed automatically for the current user if missing |
+### Required for all scripts
 
-To install `ImportExcel` manually:
+| Requirement | Details |
+|---|---|
+| **PowerShell** | **PowerShell 7+ recommended.** Windows PowerShell 5.1 works for most tasks; see the [5.1 caveats](#windows-powershell-51-caveats) below. |
+| **Jira Cloud site** | Jira Cloud only (`https://<your-site>.atlassian.net`). Jira Server / Data Center is **not** supported. |
+| **Atlassian API token** | A **classic (unscoped)** token from [id.atlassian.com → Security → API tokens](https://id.atlassian.com/manage-profile/security/api-tokens). Scoped tokens use a different API URL and will not work with these scripts. |
+| **Network access** | Outbound HTTPS (443) to your `*.atlassian.net` site. If your organisation uses an IP allowlist, run from an allowed network/VPN. |
+
+### Per-script requirements
+
+| Script | Jira permission needed | Extra requirements |
+|---|---|---|
+| `Test-JiraApiToken.ps1` | None beyond a valid account | — |
+| `Copy-JiraDescriptionAndAC.ps1` | **Browse** the source project, **Edit Issues** on every target project | Description and Acceptance Criteria fields must be on the target issues' **edit screen**. Use PowerShell 7 if content has non-ASCII characters (see below). |
+| `Export-JiraAllIssues.ps1` | **Browse Projects** | **ImportExcel** module |
+| `Export-JiraIssuesByLabel.ps1` | **Browse Projects** | **ImportExcel** module |
+
+### ImportExcel module (export scripts only)
+
+The export scripts install it automatically for the current user on first run. This needs access to the PowerShell Gallery (`powershellgallery.com`). To install it yourself in advance:
 
 ```powershell
 Install-Module -Name ImportExcel -Scope CurrentUser
 ```
+
+**Microsoft Excel is not required** to generate the reports. You only need Excel (or LibreOffice, etc.) to open them.
+
+### Windows PowerShell 5.1 caveats
+
+- **Non-ASCII text in `Copy-JiraDescriptionAndAC.ps1`:** 5.1 does not send the request body as UTF-8, so characters like `é`, `–`, curly quotes or emoji may be corrupted on the target issues. Use PowerShell 7.
+- **First-time module install** may prompt to install the NuGet provider or trust PSGallery. Accept, or run `Set-PSRepository PSGallery -InstallationPolicy Trusted`.
+
+### Linux / macOS
+
+All scripts run on PowerShell 7 for Linux and macOS. The export scripts default to Windows paths (`C:\Reports`, `D:\Reports`), so always pass `-OutputFolder`:
+
+```powershell
+./Export-JiraAllIssues.ps1 ... -OutputFolder ~/Reports
+```
+
+### Quick checklist
+
+- [ ] PowerShell 7+ installed (`$PSVersionTable.PSVersion`)
+- [ ] Classic Atlassian API token created
+- [ ] Your Jira site URL (`https://<your-site>.atlassian.net`)
+- [ ] Browse (and Edit, for the copy script) permission on the project
+- [ ] Custom field IDs confirmed for your site (see [Custom Field IDs](#custom-field-ids))
+- [ ] `Test-JiraApiAccess` returns `Success = True`
 
 ---
 
@@ -65,6 +102,8 @@ cd Atlassian_Jira_Automation\Scripts
 
 # 2. (Windows) Allow local scripts to run for this session
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+#    If you downloaded the repo as a ZIP, also unblock the files:
+Get-ChildItem *.ps1 | Unblock-File
 
 # 3. Store your credentials in variables (avoids leaking them into history)
 $Email    = 'you@company.com'
@@ -245,6 +284,7 @@ If a query returns no issues, a header-only sheet is still written so the workbo
 | `400 Bad Request` on update | The field ID is wrong, or the field isn't on the target issue's edit screen |
 | Acceptance Criteria column is always `FALSE` | The custom field ID doesn't match your site. See [Custom Field IDs](#custom-field-ids) |
 | `cannot be loaded because running scripts is disabled` | Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` |
+| Accented characters, dashes or emoji are garbled after a copy | Windows PowerShell 5.1 doesn't send the body as UTF-8. Re-run `Copy-JiraDescriptionAndAC.ps1` in PowerShell 7 |
 | `Install-Module` fails | Install `ImportExcel` manually, or trust PSGallery: `Set-PSRepository PSGallery -InstallationPolicy Trusted` |
 
 ---
